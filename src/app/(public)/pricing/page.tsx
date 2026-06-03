@@ -1,12 +1,16 @@
 'use client'
 
-import Link from 'next/link'
 import { useState } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
+import { toast } from 'sonner'
 import { useAuthStore } from '@/lib/store/authStore'
+import { useSubscription } from '@/lib/hooks/useSubscription'
 import Button from '@/components/ui/Button'
 import { cn } from '@/lib/utils/cn'
 
+// ─── Plan feature data ────────────────────────────────────────────────────────
 const CLASSIC_FEATURES = {
   included: [
     '10 cinematic reels per month',
@@ -51,39 +55,36 @@ const PREMIUM_FEATURES = {
 
 const CUSTOM_TIERS = [
   {
-    key:      'starter' as const,
+    key:      'starter',
     name:     'Starter',
     price:    '$299',
     duration: '20–30 sec',
     delivery: '4–5 working days',
-    revision: '1 revision included',
-    format:   'Vertical & horizontal',
+    ideal:    'Brand intro, product launch, event highlight',
   },
   {
-    key:      'advance' as const,
+    key:      'advance',
     name:     'Advance',
     price:    '$399',
     duration: '35–60 sec',
     delivery: '7–10 working days',
-    revision: '1 revision included',
-    format:   'Vertical & horizontal',
+    ideal:    'Brand story, campaign film, testimonial showcase',
+    popular:  true,
   },
   {
-    key:       'pro_master' as const,
-    name:      'Pro Master',
-    price:     '$599',
-    duration:  '60–120 sec',
-    delivery:  '10–15 working days',
-    revision:  '1 revision included',
-    format:    'Vertical & horizontal',
-    highlight: true,
+    key:      'pro_master',
+    name:     'Pro Master',
+    price:    '$599',
+    duration: '60–120 sec',
+    delivery: '10–15 working days',
+    ideal:    'Full brand film, documentary-style, hero video',
   },
 ]
 
-const FAQ = [
+const FAQ_ITEMS = [
   {
     q: 'Can I switch between Classic and Premium?',
-    a: 'Yes. Upgrade or downgrade at any time. Changes take effect on your next billing cycle.',
+    a: 'Yes. Upgrade or downgrade at any time through the billing portal. Changes take effect on your next billing cycle.',
   },
   {
     q: 'What happens if I don\'t use all 10 reels?',
@@ -91,7 +92,7 @@ const FAQ = [
   },
   {
     q: 'Is there a free trial?',
-    a: 'We don\'t offer a free trial currently, but our Classic plan is the best way to experience Celestiva at a low commitment.',
+    a: 'Yes — 3 days free on any plan. Your card is collected upfront and charged automatically after the trial ends.',
   },
   {
     q: 'How is Custom AI Filmmaking different from the monthly plans?',
@@ -99,16 +100,31 @@ const FAQ = [
   },
 ]
 
+// ─── Feature row ──────────────────────────────────────────────────────────────
 function FeatureRow({ text, included }: { text: string; included: boolean }) {
   return (
     <div className='flex items-start gap-3'>
       {included ? (
-        <svg width='16' height='16' viewBox='0 0 24 24' fill='none' className='flex-shrink-0 mt-0.5'>
-          <path d='M20 6L9 17l-5-5' stroke='#D4A574' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' />
+        <svg
+          width='16' height='16' viewBox='0 0 24 24' fill='none'
+          className='flex-shrink-0 mt-0.5'
+        >
+          <path
+            d='M20 6L9 17l-5-5'
+            stroke='#D4A574' strokeWidth='2'
+            strokeLinecap='round' strokeLinejoin='round'
+          />
         </svg>
       ) : (
-        <svg width='16' height='16' viewBox='0 0 24 24' fill='none' className='flex-shrink-0 mt-0.5'>
-          <path d='M18 6L6 18M6 6l12 12' stroke='rgba(245,240,232,0.15)' strokeWidth='1.5' strokeLinecap='round' />
+        <svg
+          width='16' height='16' viewBox='0 0 24 24' fill='none'
+          className='flex-shrink-0 mt-0.5'
+        >
+          <path
+            d='M18 6L6 18M6 6l12 12'
+            stroke='rgba(245,240,232,0.15)' strokeWidth='1.5'
+            strokeLinecap='round'
+          />
         </svg>
       )}
       <span className={cn(
@@ -121,22 +137,48 @@ function FeatureRow({ text, included }: { text: string; included: boolean }) {
   )
 }
 
+// ─── Page ─────────────────────────────────────────────────────────────────────
 export default function PricingPage() {
-  const user         = useAuthStore((s) => s.user)
-  const subscription = useAuthStore((s) => s.subscription)
-  const [openFaq, setOpenFaq] = useState<number | null>(null)
+  const router  = useRouter()
+  const user    = useAuthStore((s) => s.user)
 
-  const cta = (plan: 'classic' | 'premium') => {
-    if (!user) return { href: '/signup', label: 'Get Started' }
-    if (subscription?.plan === plan) return { href: '/studio', label: 'Go to Studio' }
-    return { href: '/signup', label: 'Get Started' }
+  const { data: subscription } = useSubscription(user?.id ?? null)
+
+  const [checkoutLoading, setCheckoutLoading] = useState<'classic' | 'premium' | null>(null)
+  const [openFaq,         setOpenFaq]         = useState<number | null>(null)
+
+  // ── Start trial / checkout ───────────────────────────────────────────────
+  async function startTrial(plan: 'classic' | 'premium') {
+    if (!user) {
+      router.push(`/signup?redirect=pricing&plan=${plan}`)
+      return
+    }
+
+    setCheckoutLoading(plan)
+    try {
+      const res = await fetch('/api/dodo/create-checkout-session', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ plan }),
+      })
+      const data = await res.json()
+      if (data.url) {
+        window.location.href = data.url
+      } else {
+        toast.error('Could not start checkout. Please try again.')
+      }
+    } catch {
+      toast.error('Something went wrong. Please try again.')
+    } finally {
+      setCheckoutLoading(null)
+    }
   }
 
   return (
     <div className='min-h-screen pt-32 pb-24'>
 
-      {/* Header */}
-      <div className='text-center px-6 mb-20'>
+      {/* ── Header ──────────────────────────────────────────────────────── */}
+      <div className='text-center px-6 mb-16'>
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0  }}
@@ -149,12 +191,12 @@ export default function PricingPage() {
             Simple, honest pricing.
           </h1>
           <p className='font-body text-lg text-cream/40 mt-5 max-w-lg mx-auto leading-relaxed'>
-            No hidden fees. No per-video charges. One flat monthly rate — 10 chef&apos;s special reels every cycle.
+            3-day free trial on every plan. Card required — cancel anytime.
           </p>
         </motion.div>
       </div>
 
-      {/* Main plan cards */}
+      {/* ── Main plan cards ──────────────────────────────────────────────── */}
       <div className='max-w-5xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8'>
 
         {/* Classic */}
@@ -165,7 +207,9 @@ export default function PricingPage() {
           className='bg-shadow/60 border border-gold/12 rounded-3xl p-8 flex flex-col'
         >
           <div className='mb-8'>
-            <p className='font-body text-xs text-gold/50 tracking-widest uppercase mb-3'>Classic Menu</p>
+            <p className='font-body text-xs text-gold/50 tracking-widest uppercase mb-3'>
+              Classic Menu
+            </p>
             <div className='flex items-end gap-2 mb-2'>
               <span className='font-heading text-6xl font-medium text-cream'>$49</span>
               <span className='font-body text-sm text-cream/35 mb-2'>/month</span>
@@ -176,20 +220,33 @@ export default function PricingPage() {
           </div>
 
           {subscription?.plan === 'classic' ? (
-            <Link href='/studio' className='mb-8'>
+            <Link href='/studio' className='mb-2'>
               <Button variant='gold' fullWidth>Go to Studio</Button>
             </Link>
           ) : (
-            <Link href={cta('classic').href} className='mb-8'>
-              <Button variant='ghost' fullWidth>{cta('classic').label}</Button>
-            </Link>
+            <div className='mb-2'>
+              <Button
+                variant='ghost'
+                fullWidth
+                loading={checkoutLoading === 'classic'}
+                onClick={() => startTrial('classic')}
+              >
+                Start 3-Day Free Trial
+              </Button>
+            </div>
           )}
+
+          <p className='font-body text-xs text-cream/25 text-center mb-8'>
+            {subscription?.plan === 'classic'
+              ? 'Currently active'
+              : 'Card required · Cancel anytime'}
+          </p>
 
           <div className='space-y-3.5 flex-1'>
             {CLASSIC_FEATURES.included.map((f, i) => (
               <FeatureRow key={i} text={f} included />
             ))}
-            <div className='h-px bg-cream/5 my-4' />
+            <div className='h-px bg-cream/5 my-2' />
             {CLASSIC_FEATURES.excluded.map((f, i) => (
               <FeatureRow key={i} text={f} included={false} />
             ))}
@@ -204,7 +261,8 @@ export default function PricingPage() {
           className='relative gold-border-gradient rounded-3xl p-8 flex flex-col overflow-hidden'
         >
           {/* Glow */}
-          <div className='absolute top-0 right-0 w-72 h-72 rounded-full pointer-events-none'
+          <div
+            className='absolute top-0 right-0 w-72 h-72 rounded-full pointer-events-none'
             style={{ background: 'radial-gradient(circle, rgba(212,135,74,0.1) 0%, transparent 70%)' }}
           />
 
@@ -215,7 +273,9 @@ export default function PricingPage() {
           </div>
 
           <div className='mb-8'>
-            <p className='font-body text-xs text-amber-400/60 tracking-widest uppercase mb-3'>Premium</p>
+            <p className='font-body text-xs text-amber-400/60 tracking-widest uppercase mb-3'>
+              Premium
+            </p>
             <div className='flex items-end gap-2 mb-2'>
               <span className='font-heading text-6xl font-medium text-cream'>$169</span>
               <span className='font-body text-sm text-cream/35 mb-2'>/month</span>
@@ -226,22 +286,36 @@ export default function PricingPage() {
           </div>
 
           {subscription?.plan === 'premium' ? (
-            <Link href='/studio' className='mb-8'>
-              <Button variant='gold' fullWidth className='shadow-gold-md'>Go to Studio</Button>
-            </Link>
-          ) : (
-            <Link href={cta('premium').href} className='mb-8'>
+            <Link href='/studio' className='mb-2'>
               <Button variant='gold' fullWidth className='shadow-gold-md'>
-                {cta('premium').label}
+                Go to Studio
               </Button>
             </Link>
+          ) : (
+            <div className='mb-2'>
+              <Button
+                variant='gold'
+                fullWidth
+                loading={checkoutLoading === 'premium'}
+                onClick={() => startTrial('premium')}
+                className='shadow-gold-md'
+              >
+                Start 3-Day Free Trial
+              </Button>
+            </div>
           )}
+
+          <p className='font-body text-xs text-cream/25 text-center mb-8'>
+            {subscription?.plan === 'premium'
+              ? 'Currently active'
+              : 'Card required · Cancel anytime'}
+          </p>
 
           <div className='space-y-3.5 flex-1'>
             {PREMIUM_FEATURES.included.map((f, i) => (
               <FeatureRow key={i} text={f} included />
             ))}
-            <div className='h-px bg-cream/5 my-4' />
+            <div className='h-px bg-cream/5 my-2' />
             {PREMIUM_FEATURES.excluded.map((f, i) => (
               <FeatureRow key={i} text={f} included={false} />
             ))}
@@ -249,7 +323,7 @@ export default function PricingPage() {
         </motion.div>
       </div>
 
-      {/* Custom AI Filmmaking */}
+      {/* ── Custom AI Filmmaking ─────────────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0  }}
@@ -267,7 +341,8 @@ export default function PricingPage() {
                 A film built for your brand.
               </h2>
               <p className='font-body text-sm text-cream/40 leading-relaxed mb-6'>
-                Our team personally handles every frame. You get a bespoke short film delivered to your brief — with revisions included.
+                Our team personally handles every frame. You get a bespoke short
+                film delivered to your brief — with revisions included.
               </p>
               <Link href='/custom-filmmaking'>
                 <Button variant='ghost'>Request a Custom Film</Button>
@@ -280,26 +355,45 @@ export default function PricingPage() {
                   key={tier.key}
                   className={cn(
                     'rounded-2xl p-5 border',
-                    tier.highlight
+                    tier.popular
                       ? 'border-gold/25 bg-gold/6'
                       : 'border-cream/6 bg-cream/2',
                   )}
                 >
-                  {tier.highlight && (
+                  {tier.popular && (
                     <span className='font-body text-[10px] text-gold border border-gold/25 px-2 py-0.5 rounded-full uppercase tracking-widest mb-3 inline-block'>
                       Popular
                     </span>
                   )}
-                  <p className='font-heading text-3xl font-medium text-cream'>{tier.price}</p>
-                  <p className='font-body text-xs text-gold/50 mt-0.5 mb-5'>{tier.name}</p>
+                  <p className='font-heading text-3xl font-medium text-cream'>
+                    {tier.price}
+                  </p>
+                  <p className='font-body text-xs text-gold/50 mt-0.5 mb-5'>
+                    {tier.name}
+                  </p>
                   <ul className='space-y-2.5'>
-                    {[tier.duration + ' video', tier.revision, tier.format, tier.delivery].map((d, i) => (
+                    {[
+                      `${tier.duration} video`,
+                      '1 revision included',
+                      'Vertical & horizontal',
+                      tier.delivery,
+                    ].map((detail, i) => (
                       <li key={i} className='flex items-start gap-2'>
                         <span className='w-1 h-1 rounded-full bg-gold/30 flex-shrink-0 mt-2' />
-                        <span className='font-body text-xs text-cream/40 leading-relaxed'>{d}</span>
+                        <span className='font-body text-xs text-cream/40 leading-relaxed'>
+                          {detail}
+                        </span>
                       </li>
                     ))}
                   </ul>
+                  <p className={cn(
+                    'font-body text-xs mt-4 pt-4 border-t leading-relaxed',
+                    tier.popular
+                      ? 'border-gold/15 text-gold/50'
+                      : 'border-cream/5 text-cream/20',
+                  )}>
+                    {tier.ideal}
+                  </p>
                 </div>
               ))}
             </div>
@@ -307,13 +401,14 @@ export default function PricingPage() {
         </div>
       </motion.div>
 
-      {/* FAQ */}
+      {/* ── FAQ ──────────────────────────────────────────────────────────── */}
       <div className='max-w-2xl mx-auto px-6'>
         <h2 className='font-heading text-3xl font-medium text-cream text-center mb-10'>
           Common questions
         </h2>
+
         <div>
-          {FAQ.map((item, i) => (
+          {FAQ_ITEMS.map((item, i) => (
             <div key={i} className='border-b border-cream/5 last:border-b-0'>
               <button
                 onClick={() => setOpenFaq(openFaq === i ? null : i)}
@@ -321,20 +416,28 @@ export default function PricingPage() {
               >
                 <span className={cn(
                   'font-body text-sm font-medium transition-colors pr-6',
-                  openFaq === i ? 'text-cream' : 'text-cream/55 group-hover:text-cream/80',
+                  openFaq === i
+                    ? 'text-cream'
+                    : 'text-cream/55 group-hover:text-cream/80',
                 )}>
                   {item.q}
                 </span>
                 <div className={cn(
-                  'flex-shrink-0 w-7 h-7 rounded-full border flex items-center justify-center transition-all',
-                  openFaq === i ? 'border-gold/40 bg-gold/10 rotate-45' : 'border-cream/10',
+                  'flex-shrink-0 w-7 h-7 rounded-full border flex items-center justify-center transition-all duration-200',
+                  openFaq === i
+                    ? 'border-gold/40 bg-gold/10 rotate-45'
+                    : 'border-cream/10',
                 )}>
-                  <svg width='10' height='10' viewBox='0 0 12 12' fill='none'
-                    stroke={openFaq === i ? '#D4A574' : 'rgba(245,240,232,0.3)'} strokeWidth='1.5'>
+                  <svg
+                    width='10' height='10' viewBox='0 0 12 12' fill='none'
+                    stroke={openFaq === i ? '#D4A574' : 'rgba(245,240,232,0.3)'}
+                    strokeWidth='1.5'
+                  >
                     <path d='M6 1v10M1 6h10' strokeLinecap='round' />
                   </svg>
                 </div>
               </button>
+
               {openFaq === i && (
                 <motion.div
                   initial={{ height: 0, opacity: 0 }}

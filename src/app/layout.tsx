@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Cormorant_Garamond, Inter } from 'next/font/google'
 import Providers from '@/components/providers/Providers'
 import './globals.css'
+import AuthProvider from '@/components/providers/AuthProvider'
 
 const cormorant = Cormorant_Garamond({
   subsets:  ['latin'],
@@ -61,9 +62,11 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className='font-body bg-primary text-cream antialiased overflow-x-hidden'>
-        <Providers>
-          {children}
-        </Providers>
+        <AuthProvider>
+          <Providers>
+            {children}
+          </Providers>
+        </AuthProvider>
       </body>
     </html>
   )

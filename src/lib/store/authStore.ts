@@ -13,7 +13,7 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>()(
-  persist(
+  // persist(
     (set) => ({
       user:         null,
       subscription: null,
@@ -31,12 +31,12 @@ export const useAuthStore = create<AuthState>()(
         isLoading:    false,
       }),
     }),
-    {
-      name: 'cmc-auth',
-      // Only persist user — subscription is always re-fetched fresh on mount
-      partialize: (state) => ({ user: state.user }),
-    }
-  )
+    // {
+    //   name: 'cmc-auth',
+    //   // Only persist user — subscription is always re-fetched fresh on mount
+    //   partialize: (state) => ({ user: state.user }),
+    // }
+  // )
 )
 
 // ─── Selectors ──────────────────────────────────────────────────────────────

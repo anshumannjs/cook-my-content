@@ -167,22 +167,27 @@ async function sendOTP(emailAddr: string) {
 
   // ── Verify OTP ─────────────────────────────────────────────────────────────
   async function verifyOTP() {
-    if (!otpReady) return
-    setVerifying(true)
-    const supabase = createClient()
-    const { error } = await supabase.auth.verifyOtp({
-      email: email,
-      token: otpValue,
-      type:  'email',
-    })
+  if (!otpReady) return
+  setVerifying(true)
+  const supabase = createClient()
+  const { error } = await supabase.auth.verifyOtp({
+    email,
+    token: otpValue,
+    type:  'email',
+  })
+
+  if (error) {
     setVerifying(false)
-    if (error) {
-      toast.error('Invalid or expired code. Please try again.')
-      setOtpDigits(Array(OTP_LENGTH).fill(''))
-      return
-    }
-    // Auth listener in Providers will handle redirect
+    toast.error('Invalid or expired code. Please try again.')
+    setOtpDigits(Array(OTP_LENGTH).fill(''))
+    return
   }
+
+  // Full page navigation so middleware reads fresh session cookies
+  const params     = new URLSearchParams(window.location.search)
+  const redirectTo = params.get('redirectTo') ?? '/studio'
+  window.location.href = redirectTo
+}
 
   // Auto-verify when all digits filled
   useEffect(() => {

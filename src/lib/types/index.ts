@@ -6,15 +6,37 @@ export type PlanType = 'classic' | 'premium'
 // ─── Shopify subscription row ───────────────────────────────────────────────
 export type ShopifyOrder = Tables<'shopify subs orders'>
 
-// ─── Derived subscription info (what the app uses) ─────────────────────────
+// ─── Subscription (from subscriptions table, Stripe-backed) ─────────────────
+export type SubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'canceled'
+
 export interface UserSubscription {
-  plan: PlanType
-  orderIdName: string | null
-  confirmationNumber: string | null
-  email: string
-  phoneNumber: string | null
-  amountPaid: unknown
-  createdAt: string | null
+  plan:                PlanType
+  status:              SubscriptionStatus
+  stripeCustomerId:    string
+  trialEnd:            string | null
+  trialDaysRemaining:  number | null
+  currentPeriodEnd:    string | null
+  cancelAtPeriodEnd:   boolean
+}
+
+// ─── Trial usage ─────────────────────────────────────────────────────────────
+export interface TrialUsage {
+  todayCount:  number
+  dailyLimit:  number
+  remaining:   number
+  isBlocked:   boolean
+}
+
+// ─── Profile row ─────────────────────────────────────────────────────────────
+export interface Profile {
+  id:               string
+  email:            string
+  fullName:         string | null
+  phone:            number | null    // number, matches DB
+  businessName:     string | null
+  businessNiche:    string | null    // was businessTypeNiche — now matches DB column business_niche
+  logoUrl:          string | null
+  stripeCustomerId: string | null
 }
 
 // ─── Submission rows ────────────────────────────────────────────────────────

@@ -369,7 +369,7 @@ export default function StudioPage() {
                 {...register('phone_number')}
               />
             </div>
-            <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
+            {/* <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
               <Input
                 label='Business Name'
                 placeholder='Bloom Skincare'
@@ -382,7 +382,7 @@ export default function StudioPage() {
                 error={errors.business_type_niche?.message}
                 {...register('business_type_niche')}
               />
-            </div>
+            </div> */}
           </FormSection>
 
           {/* Content Settings */}

@@ -1,18 +1,12 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@/supabase'
-import type { UserSubscription, PlanType } from '@/lib/types'
+import { createClient } from "../supabase/client"
 
-type Client = SupabaseClient<Database>
-
-// ─── Fetch the user's latest subscription from Shopify orders table ─────────
-export async function fetchSubscription(
-  client: Client,
-  email: string
-): Promise<UserSubscription | null> {
-  const { data, error } = await client
-    .from('shopify subs orders')
+export async function fetchSubscription(userId: string): Promise<UserSubscription | null> {
+  console.log({userId})
+  const { data, error } = await createClient()
+    .from('subscriptions')
     .select('*')
-    .eq('email', email)
+    .eq('user_id', userId)
+    .in('status', ['trialing', 'active', 'past_due'])
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -20,23 +14,21 @@ export async function fetchSubscription(
   if (error) throw new Error(error.message)
   if (!data)  return null
 
-  // Map product_title to our PlanType — "classic" | "premium"
-  const raw = (data.product_title ?? '').toLowerCase()
-  let plan: PlanType | null = null
+  const row = data as any  // use any until types regenerate
 
-  if (raw.includes('classic')) plan = 'classic'
-  if (raw.includes('premium')) plan = 'premium'
-
-  // No recognised plan → treat as no subscription
-  if (!plan) return null
+  let trialDaysRemaining: number | null = null
+  if (row.trial_end && row.status === 'trialing') {
+    const ms = new Date(row.trial_end).getTime() - Date.now()
+    trialDaysRemaining = Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)))
+  }
 
   return {
-    plan,
-    orderIdName:        data.order_id_name   ?? null,
-    confirmationNumber: data.confirmation_number ?? null,
-    email:              data.email           ?? email,
-    phoneNumber:        data.phone_number    ?? null,
-    amountPaid:         data.amount_paid,
-    createdAt:          data.created_at      ?? null,
+    plan:              row.tier as 'classic' | 'premium',
+    status:            row.status as UserSubscription['status'],
+    stripeCustomerId:  row.payment_customer_id,   // renamed column
+    trialEnd:          row.trial_end          ?? null,
+    trialDaysRemaining,
+    currentPeriodEnd:  row.current_period_end ?? null,
+    cancelAtPeriodEnd: row.cancel_at_period_end ?? false,
   }
 }

@@ -362,12 +362,12 @@ export default function CustomFilmmakingPage() {
                     error={errors.targetAudience?.message}
                     {...register('targetAudience')}
                   />
-                  <Textarea
+                  {/* <Textarea
                     label='Reference Videos or Brands (optional)'
                     placeholder='Any brands or videos that capture the vibe you\'re after? YouTube links, brand names, anything helps.'
                     rows={2}
                     {...register('references')}
-                  />
+                  /> */}
                   <Textarea
                     label='Additional Notes (optional)'
                     placeholder='Anything else we should know — deadlines, special requirements, upcoming campaigns…'

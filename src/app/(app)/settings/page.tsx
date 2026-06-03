@@ -16,12 +16,13 @@ import Input from '@/components/ui/Input'
 import Badge from '@/components/ui/Badge'
 import Spinner from '@/components/ui/Spinner'
 import { cn } from '@/lib/utils/cn'
+import { updateProfile } from '@/lib/queries/profile'
 
 const profileSchema = z.object({
-  displayName: z.string().min(2, 'Name must be at least 2 characters'),
-  phone:       z.string().optional(),
-  businessName:       z.string().optional(),
-  businessTypeNiche:  z.string().optional(),
+  displayName:   z.string().min(2, 'Name must be at least 2 characters'),
+  phone:         z.string().optional(),   // string in form, converted to number on save
+  businessName:  z.string().optional(),
+  businessNiche: z.string().optional(),   // was businessTypeNiche
 })
 type ProfileValues = z.infer<typeof profileSchema>
 
@@ -29,15 +30,40 @@ type Tab = 'profile' | 'billing'
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('profile')
-  const user         = useAuthStore((s) => s.user)
+  const user = useAuthStore((s) => s.user)
   const subscription = useAuthStore((s) => s.subscription)
-  const setUser      = useAuthStore((s) => s.setUser)
+  const setUser = useAuthStore((s) => s.setUser)
 
-  const { data: sub,    isLoading: subLoading }  = useSubscription(user?.email)
+  const { data: sub, isLoading: subLoading } = useSubscription(user?.email)
   const { data: limits, isLoading: limitsLoading } = useUsageLimits(
     user?.email,
     sub?.plan ?? null,
   )
+
+  const [portalLoading, setPortalLoading] = useState(false)
+
+  async function handleManageBilling() {
+  setPortalLoading(true)
+  try {
+    const { data: sub } = await createClient()
+      .from('subscriptions')
+      .select('payment_customer_id')
+      .eq('user_id', user!.id)
+      .single()
+
+    if (!sub?.payment_customer_id) {
+      toast.error('No subscription found')
+      return
+    }
+
+    // Redirect directly to the GET handler with customer_id
+    window.location.href = `/api/dodo/customer-portal?customer_id=${sub.payment_customer_id}`
+  } catch {
+    toast.error('Could not open billing portal')
+  } finally {
+    setPortalLoading(false)
+  }
+}
 
   const {
     register,
@@ -46,9 +72,9 @@ export default function SettingsPage() {
   } = useForm<ProfileValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
-      displayName:       user?.displayName ?? '',
-      phone:             sub?.phoneNumber  ?? '',
-      businessName:      '',
+      displayName: user?.displayName ?? '',
+      phone: sub?.phoneNumber ?? '',
+      businessName: '',
       businessTypeNiche: '',
     },
     // Load saved metadata async
@@ -59,24 +85,17 @@ export default function SettingsPage() {
   })
 
   async function onSaveProfile(values: ProfileValues) {
-    const supabase = createClient()
-    const { error } = await supabase.auth.updateUser({
-      data: {
-        full_name:           values.displayName,
-        phone_number:        values.phone,
-        business_name:       values.businessName,
-        business_type_niche: values.businessTypeNiche,
-      },
-    })
-    if (error) { toast.error(error.message); return }
-
-    setUser({ ...user!, displayName: values.displayName })
-    toast.success('Profile updated')
-  }
+  await updateProfile(user!.id, {
+    fullName:      values.displayName,
+    phone:         values.phone ? parseInt(values.phone.replace(/\D/g, '')) : null,
+    businessName:  values.businessName  || null,
+    businessNiche: values.businessNiche || null,   // was businessTypeNiche
+  })
+}
 
   const TABS: { key: Tab; label: string }[] = [
-    { key: 'profile', label: 'Profile'  },
-    { key: 'billing', label: 'Billing'  },
+    { key: 'profile', label: 'Profile' },
+    { key: 'billing', label: 'Billing' },
   ]
 
   return (
@@ -113,7 +132,7 @@ export default function SettingsPage() {
         <motion.div
           key='profile'
           initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0  }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25 }}
         >
           <form onSubmit={handleSubmit(onSaveProfile)} className='space-y-6'>
@@ -206,7 +225,7 @@ export default function SettingsPage() {
         <motion.div
           key='billing'
           initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0  }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25 }}
           className='space-y-5'
         >
@@ -245,10 +264,10 @@ export default function SettingsPage() {
 
                 <div className='grid grid-cols-2 gap-4'>
                   {[
-                    { label: 'Order Ref',      value: sub.orderIdName ?? '—' },
-                    { label: 'Confirmation',   value: sub.confirmationNumber ?? '—' },
-                    { label: 'Member Since',   value: sub.createdAt ? format(new Date(sub.createdAt), 'MMM d, yyyy') : '—' },
-                    { label: 'Billing',        value: 'Managed via Shopify' },
+                    { label: 'Order Ref', value: sub.orderIdName ?? '—' },
+                    { label: 'Confirmation', value: sub.confirmationNumber ?? '—' },
+                    { label: 'Member Since', value: sub.createdAt ? format(new Date(sub.createdAt), 'MMM d, yyyy') : '—' },
+                    { label: 'Billing', value: 'Managed via Shopify' },
                   ].map((item) => (
                     <div key={item.label}>
                       <p className='font-body text-xs text-cream/25 mb-0.5'>{item.label}</p>
@@ -353,26 +372,40 @@ export default function SettingsPage() {
             <p className='font-body text-xs text-cream/30 uppercase tracking-widest mb-3'>
               Manage Subscription
             </p>
-            <p className='font-body text-xs text-cream/35 leading-relaxed mb-5'>
-              Your subscription is managed through Shopify. To upgrade, downgrade, or cancel, please visit your Shopify account or contact support.
-            </p>
-            <div className='flex flex-wrap gap-3'>
-              <a href='/pricing' className='flex-1'>
-                <Button variant='ghost' fullWidth size='sm'>
-                  Upgrade Plan
-                </Button>
-              </a>
-              
-                href='mailto:support@cookmycontent.com'
-                className='flex-1'
-              >
-                <Button variant='outline' fullWidth size='sm'>
-                  Contact Support
-                </Button>
-              </a>
-            </div>
-          </div>
 
+            {subscription?.status === 'trialing' && (
+              <div className='p-4 rounded-xl bg-amber-950/20 border border-amber-800/25 mb-5'>
+                <p className='font-body text-xs text-amber-400/80 leading-relaxed'>
+                  <span className='font-medium text-amber-300'>Free trial active.</span>{' '}
+                  Your trial ends{' '}
+                  {subscription.trialEnd
+                    ? format(new Date(subscription.trialEnd), 'MMMM d, yyyy')
+                    : 'soon'
+                  }.
+                  You won&apos;t be charged until then.
+                </p>
+              </div>
+            )}
+
+            <p className='font-body text-xs text-cream/35 leading-relaxed mb-5'>
+              Manage your plan, update your payment method, view invoices, or cancel
+              through the Stripe billing portal.
+            </p>
+
+            <Button
+              variant='ghost'
+              fullWidth
+              loading={portalLoading}
+              onClick={handleManageBilling}
+            >
+              Open Billing Portal
+              <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' className='ml-1.5'>
+                <path d='M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6' />
+                <polyline points='15 3 21 3 21 9' />
+                <line x1='10' y1='14' x2='21' y2='3' />
+              </svg>
+            </Button>
+          </div>
         </motion.div>
       )}
     </div>

@@ -47,9 +47,8 @@ function AuthListener() {
           displayName: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
           avatarUrl:   user.user_metadata?.avatar_url ?? null,
         })
-        // Fetch subscription from Shopify table
         try {
-          const sub = await fetchSubscription(supabase, user.email!)
+          const sub = await fetchSubscription(supabase,user.id)  // ← user.id not user.email
           setSubscription(sub)
         } catch {
           setSubscription(null)
@@ -72,7 +71,7 @@ function AuthListener() {
             avatarUrl:   user.user_metadata?.avatar_url ?? null,
           })
           try {
-            const sub = await fetchSubscription(supabase, user.email!)
+            const sub = await fetchSubscription(supabase,user.id)  // ← user.id not user.email
             setSubscription(sub)
           } catch {
             setSubscription(null)
