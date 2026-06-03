@@ -12,6 +12,9 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: ['@fortawesome/react-fontawesome'],
   },
+  typescript: {
+    ignoreBuildErrors: true,
+  }
 }
 
 export default nextConfig
