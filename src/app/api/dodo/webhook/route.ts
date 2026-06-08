@@ -144,7 +144,7 @@ export const POST = Webhooks({
       const plan = data.product_id === process.env.DODO_CLASSIC_PRODUCT_ID
         ? 'classic' as const
         : 'premium' as const
-      await resetGenerationLimits(data, plan)
+    //   await resetGenerationLimits(data, plan)
     }
 
     // On plan change — update tier without touching period dates
