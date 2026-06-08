@@ -34,7 +34,7 @@ export default function SettingsPage() {
   const subscription = useAuthStore((s) => s.subscription)
   const setUser = useAuthStore((s) => s.setUser)
 
-  const { data: sub, isLoading: subLoading } = useSubscription(user?.email)
+  const { data: sub, isLoading: subLoading } = useSubscription(user?.id)
   const { data: limits, isLoading: limitsLoading } = useUsageLimits(
     user?.email,
     sub?.plan ?? null,

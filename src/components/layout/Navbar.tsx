@@ -20,6 +20,7 @@ export default function Navbar() {
   const [mobileOpen,   setMobileOpen]   = useState(false)
   const pathname = usePathname()
   const user     = useAuthStore((s) => s.user)
+  console.log({user})
 
   // Frost on scroll
   useEffect(() => {

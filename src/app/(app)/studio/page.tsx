@@ -141,7 +141,9 @@ export default function StudioPage() {
   const setLogoFile   = useStudioStore((s) => s.setLogoFile)
   const submitSuccess = useStudioStore((s) => s.submitSuccess)
 
-  const { data: sub }    = useSubscription(user?.email)
+  console.log({user});
+
+  const { data: sub }    = useSubscription(user?.id)
   const { data: limits } = useUsageLimits(user?.email, activePlan)
   const submitReel       = useSubmitReel()
 

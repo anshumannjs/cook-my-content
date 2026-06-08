@@ -35,10 +35,10 @@ export default function AuthProvider({
 
     async function load() {
       const {
-        data: { session },
-      } = await supabase.auth.getSession()
+        data: { user },
+      } = await supabase.auth.getUser()
 
-      setUser(session?.user ? mapSupabaseUser(session.user) : null)
+      setUser(user ? mapSupabaseUser(user) : null)
       setLoading(false)
     }
 

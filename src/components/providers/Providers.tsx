@@ -33,31 +33,44 @@ function getQueryClient() {
 // ─── Auth listener — syncs Supabase session → Zustand ───────────────────────
 function AuthListener() {
   const { setUser, setSubscription, setLoading, reset } = useAuthStore()
-  const supabase = createClient()
 
   useEffect(() => {
+    const supabase = createClient()
     setLoading(true)
 
-    // Initial session check
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (user) {
-        setUser({
-          id:          user.id,
-          email:       user.email!,
-          displayName: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
-          avatarUrl:   user.user_metadata?.avatar_url ?? null,
-        })
-        try {
-          const sub = await fetchSubscription(supabase,user.id)  // ← user.id not user.email
-          setSubscription(sub)
-        } catch {
-          setSubscription(null)
-        }
-      } else {
-        reset()
-      }
+    // Safety net — never show loading spinner for more than 8 seconds
+    const timeout = setTimeout(() => {
       setLoading(false)
-    })
+    }, 8000)
+
+    // Initial session check
+    supabase.auth.getUser()
+      .then(async ({ data: { user } }) => {
+        if (user) {
+          setUser({
+            id:          user.id,
+            email:       user.email!,
+            displayName: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
+            avatarUrl:   user.user_metadata?.avatar_url ?? null,
+          })
+          try {
+            const sub = await fetchSubscription(user.id)
+            setSubscription(sub)
+          } catch {
+            setSubscription(null)
+          }
+        } else {
+          reset()
+        }
+      })
+      .catch(() => {
+        // getUser() failed — treat as signed out
+        reset()
+      })
+      .finally(() => {
+        clearTimeout(timeout)
+        setLoading(false)
+      })
 
     // Live auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -71,7 +84,7 @@ function AuthListener() {
             avatarUrl:   user.user_metadata?.avatar_url ?? null,
           })
           try {
-            const sub = await fetchSubscription(supabase,user.id)  // ← user.id not user.email
+            const sub = await fetchSubscription(user.id)
             setSubscription(sub)
           } catch {
             setSubscription(null)
@@ -86,7 +99,10 @@ function AuthListener() {
       }
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      clearTimeout(timeout)
+      subscription.unsubscribe()
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return null

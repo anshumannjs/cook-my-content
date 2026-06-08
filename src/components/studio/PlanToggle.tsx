@@ -19,7 +19,7 @@ export default function PlanToggle({ subscription }: PlanToggleProps) {
   ]
 
   // If user is on classic plan, lock them to classic
-  const lockedToClassic = subscription?.plan === 'classic'
+  const lockedToClassic = subscription?.tier === 'classic'
 
   return (
     <div className='flex flex-col sm:flex-row gap-3'>
@@ -85,12 +85,12 @@ export default function PlanToggle({ subscription }: PlanToggleProps) {
               <p className='font-body text-xs text-cream/30 mt-0.5'>{plan.sub}</p>
             </div>
 
-            {plan.key === 'premium' && subscription?.plan === 'premium' && (
+            {plan.key === 'premium' && subscription?.tier === 'premium' && (
               <span className='ml-auto flex-shrink-0 text-[10px] text-amber-400 border border-amber-700/40 bg-amber-950/30 px-2 py-0.5 rounded-full font-body'>
                 Your Plan
               </span>
             )}
-            {plan.key === 'classic' && subscription?.plan === 'classic' && (
+            {plan.key === 'classic' && subscription?.tier === 'classic' && (
               <span className='ml-auto flex-shrink-0 text-[10px] text-gold border border-gold/25 bg-gold/5 px-2 py-0.5 rounded-full font-body'>
                 Your Plan
               </span>

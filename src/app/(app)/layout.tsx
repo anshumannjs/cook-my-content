@@ -14,52 +14,74 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router    = useRouter()
   const user      = useAuthStore((s) => s.user)
   const isLoading = useAuthStore((s) => s.isLoading)
-  const [portalLoading, setPortalLoading] = useState(false)
-  console.log({user});
-  
-  const { data: subscription, isLoading: subLoading } =
-  useSubscription(user?.id)
-  
-  const path = typeof window !== 'undefined' ? window.location.pathname : ''
-  
+
+  const [portalLoading,  setPortalLoading]  = useState(false)
+  // Escape hatch — if loading takes too long, stop waiting
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false)
+
+  const {
+    data:      subscription,
+    isLoading: subLoading,
+    isError:   subError,
+  } = useSubscription(user?.id ?? null)
+
+  // Timeout escape hatch — 6 seconds max
   useEffect(() => {
-    console.log({user})
-  if (isLoading) return          // wait for auth to resolve
-  if (!user) {
-    router.replace('/login')
-    return
-  }
+    const t = setTimeout(() => setLoadingTimedOut(true), 6000)
+    return () => clearTimeout(t)
+  }, [])
 
-  if (subLoading) return         // wait for subscription to resolve
+  // Route guard
+  useEffect(() => {
+    // Still loading auth — wait (but respect timeout)
+    if (isLoading && !loadingTimedOut) return
 
-  const path       = typeof window !== 'undefined' ? window.location.pathname : ''
-  const isSettings = path.startsWith('/settings')
+    // No user after loading resolved → login
+    if (!user) {
+      router.replace('/login')
+      return
+    }
 
-  if (!subscription && !isSettings) {
-    router.replace('/pricing')
-    return
-  }
+    // Still fetching subscription — wait (but respect timeout + error)
+    if (subLoading && !loadingTimedOut && !subError) return
 
-  if (subscription?.status === 'canceled' && !isSettings) {
-    router.replace('/pricing')
-  }
-}, [user, isLoading, subscription, subLoading, router])
+    const isSettings = window.location.pathname.startsWith('/settings')
+
+    // No subscription and not on settings → pricing
+    if (!subscription && !isSettings) {
+      router.replace('/pricing')
+      return
+    }
+
+    // Cancelled subscription → pricing
+    if (subscription?.status === 'canceled' && !isSettings) {
+      router.replace('/pricing')
+    }
+  }, [user, isLoading, subscription, subLoading, subError, loadingTimedOut, router])
 
   async function handleManageBilling() {
-  setPortalLoading(true)
-  const { data: sub } = await createClient()
-    .from('subscriptions')
-    .select('payment_customer_id')
-    .eq('user_id', user!.id)
-    .single()
+    setPortalLoading(true)
+    try {
+      const { data: sub } = await createClient()
+        .from('subscriptions')
+        .select('payment_customer_id')
+        .eq('user_id', user!.id)
+        .single()
 
-  if (sub?.payment_customer_id) {
-    window.location.href = `/api/dodo/customer-portal?customer_id=${sub.payment_customer_id}`
+      if (sub?.payment_customer_id) {
+        window.location.href = `/api/dodo/customer-portal?customer_id=${sub.payment_customer_id}`
+      }
+    } catch {
+      // silent
+    } finally {
+      setPortalLoading(false)
+    }
   }
-  setPortalLoading(false)
-}
 
-  if (isLoading || subLoading) {
+  // Show loading only while genuinely loading AND not timed out
+  const showLoading = (isLoading || subLoading) && !loadingTimedOut
+
+  if (showLoading) {
     return (
       <div className='min-h-screen flex items-center justify-center'>
         <div className='flex flex-col items-center gap-4'>
@@ -78,12 +100,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className='min-h-screen flex flex-col'>
-      {/* Trial banner — shown above navbar */}
       {subscription?.status === 'trialing' && user?.email && (
         <TrialBanner subscription={subscription} email={user.email} />
       )}
 
-      {/* Past due banner */}
       {subscription?.status === 'past_due' && (
         <PastDueBanner
           onManageBilling={handleManageBilling}
